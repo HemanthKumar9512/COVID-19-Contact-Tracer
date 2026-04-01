@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COVID-19 Contact Tracer — CSA06 SIMATS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/vis-network.min.js"></script>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/dist/dist/vis-network.min.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Exo+2:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+
+        :root {
+            --bg: #03080f;
+            --bg2: #060d18;
+            --panel: #0a1628;
+            --panel2: #0d1e35;
+            --accent: #00e5ff;
+            --red: #ff3d71;
+            --green: #39d353;
+            --yellow: #ffd740;
+            --purple: #a78bfa;
+            --muted: #6a8ab0;
+            --text: #c8d8f0;
+            --border: rgba(0, 229, 255, 0.18);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: linear-gradient(rgba(0, 229, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 229, 255, 0.02) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* HEADER */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, #020b15, #060d18);
+            border-bottom: 1px solid var(--border);
+            padding: 0 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .logo {
+            font-family: 'Orbitron', monospace;
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--accent);
+            text-shadow: 0 0 18px rgba(0, 229, 255, 0.4);
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: conic-gradient(from 0deg, var(--accent), var(--red), var(--green), var(--accent));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            animation: spin 8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .hchips {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .chip {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.68rem;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .chip.g {
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .chip.r {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .chip.c {
+            border-color: var(--muted);
+            color: var(--muted);
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* LAYOUT */
+        .app {
+            display: flex;
+            height: calc(100vh - 64px);
+        }
+
+        nav {
+            width: 220px;
+            flex-shrink: 0;
+            background: var(--bg2);
+            border-right: 1px solid var(--border);
+            padding: 1rem 0;
+            overflow-y: auto;
+        }
+
+        .nlabel {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.6rem;
+            color: var(--muted);
+            letter-spacing: 3px;
+            padding: .5rem 1.2rem;
+            text-transform: uppercase;
+            margin-top: .5rem;
+        }
+
+        .nitem {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: .75rem 1.2rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all .2s;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .nitem:hover {
+            background: rgba(0, 229, 255, 0.05);
+            color: var(--text);
+        }
+
+        .nitem.active {
+            border-left-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 229, 255, 0.07);
+        }
+
+        .nicon {
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .95rem;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .nitem.active .nicon {
+            background: rgba(0, 229, 255, 0.12);
+        }
+
+        .nbadge {
+            margin-left: auto;
+            font-size: .6rem;
+            font-family: 'Share Tech Mono', monospace;
+            background: var(--red);
+            color: white;
+            border-radius: 10px;
+            padding: 1px 6px;
+        }
+
+        /* MAIN */
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+
+        .page {
+            display: none;
+            animation: fadeIn .3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        .ph {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .ptitle {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-shadow: 0 0 18px rgba(0, 229, 255, 0.3);
+        }
+
+        .psub {
+            font-size: .78rem;
+            color: var(--muted);
+            margin-top: 3px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .pbadge {
+            font-family: 'Orbitron', monospace;
+            font-size: .65rem;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        /* CARDS */
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.3rem;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1.2rem;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.4;
+        }
+
+        .ctitle {
+            font-family: 'Orbitron', monospace;
+            font-size: .78rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: var(--accent);
+            margin-bottom: .9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* GRIDS */
+        .g2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.2rem;
+        }
+
+        .g3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .g4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: .9rem;
+        }
+
+        .g5 {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: .8rem;
+        }
+
+        /* STAT CARDS */
+        .sc {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.1rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sn {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.8rem;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .sl {
+            font-size: .65rem;
+            color: var(--muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .sc.red .sn {
+            color: var(--red);
+            text-shadow: 0 0 15px rgba(255, 61, 113, .4);
+        }
+
+        .sc.cyan .sn {
+            color: var(--accent);
+            text-shadow: 0 0 15px rgba(0, 229, 255, .4);
+        }
+
+        .sc.green .sn {
+            color: var(--green);
+            text-shadow: 0 0 15px rgba(57, 211, 83, .4);
+        }
+
+        .sc.yellow .sn {
+            color: var(--yellow);
+            text-shadow: 0 0 15px rgba(255, 215, 64, .4);
+        }
+
+        .sc.purple .sn {
+            color: var(--purple);
+            text-shadow: 0 0 15px rgba(167, 139, 250, .4);
+        }
+
+        /* TABLE */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .78rem;
+        }
+
+        th {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: .62rem;
+            letter-spacing: 2px;
+            color: var(--muted);
+            text-transform: uppercase;
+            padding: .65rem .9rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: .65rem .9rem;
+            border-bottom: 1px solid rgba(255, 255, 255, .03);
+        }
+
+        tr:hover td {
+            background: rgba(0, 229, 255, .02);
+        }
+
+        /* BADGES */
+        .rb {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: .65rem;
+            font-weight: 700;
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 1px;
+        }
+
+        .rb.high {
+            background: rgba(255, 61, 113, .15);
+            color: var(--red);
+            border: 1px solid rgba(255, 61, 113, .3);
+        }
+
+        .rb.medium {
+            background: rgba(255, 215, 64, .15);
+            color: var(--yellow);
+            border: 1px solid rgba(255, 215, 64, .3);
+        }
+
+        .rb.low {
+            background: rgba(57, 211, 83, .15);
+            color: var(--green);
+            border: 1px solid rgba(57, 211, 83, .3);
+        }
+
+        .rb.positive {
+            background: rgba(255, 61, 113, .15);
+            color: var(--red);
+            border: 1px solid rgba(255, 61, 113, .3);
+        }
+
+        .rb.exposed {
+            background: rgba(255, 215, 64, .15);
+            color: var(--yellow);
+            border: 1px solid rgba(255, 215, 64, .3);
+        }
+
+        .rb.healthy {
+            background: rgba(57, 211, 83, .15);
+            color: var(--green);
+            border: 1px solid rgba(57, 211, 83, .3);
+        }
+
+        .rb.quarantine {
+            background: rgba(0, 229, 255, .15);
+            color: var(--accent);
+            border: 1px solid rgba(0, 229, 255, .3);
+        }
+
+        /* FORM */
+        .fg {
+            margin-bottom: .9rem;
+        }
+
+        label {
+            display: block;
+            font-size: .68rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            color: var(--text);
+            padding: .6rem .9rem;
+            font-family: 'Exo 2', sans-serif;
+            font-size: .82rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        input:focus,
+        select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(0, 229, 255, .2);
+        }
+
+        select option {
+            background: var(--bg2);
+        }
+
+        .row2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: .9rem;
+        }
+
+        /* BUTTONS */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: .6rem 1.2rem;
+            border-radius: 7px;
+            font-family: 'Orbitron', monospace;
+            font-size: .68rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            border: none;
+            transition: all .2s;
+        }
+
+        .btn-p {
+            background: linear-gradient(135deg, var(--accent), #0088aa);
+            color: #000;
+            box-shadow: 0 4px 15px rgba(0, 229, 255, .25);
+        }
+
+        .btn-p:hover {
+            box-shadow: 0 6px 25px rgba(0, 229, 255, .45);
+            transform: translateY(-1px);
+        }
+
+        .btn-d {
+            background: linear-gradient(135deg, var(--red), #cc0033);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 61, 113, .25);
+        }
+
+        .btn-o {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-g {
+            background: linear-gradient(135deg, var(--green), #0d7a3c);
+            color: #000;
+        }
+
+        /* ALGO BOX */
+        .abox {
+            background: var(--bg2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: .9rem 1rem;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: .72rem;
+            line-height: 1.9;
+            color: var(--text);
+        }
+
+        .kw {
+            color: var(--red);
+        }
+
+        .fn {
+            color: var(--accent);
+        }
+
+        .cm {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .num {
+            color: var(--yellow);
+        }
+
+        .str {
+            color: var(--green);
+        }
+
+        /* PROGRESS */
+        .pb {
+            margin-bottom: .8rem;
+        }
+
+        .pb-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: .72rem;
+        }
+
+        .pb-track {
+            height: 6px;
+            background: rgba(255, 255, 255, .06);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .pb-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--green));
+            transition: width 1s ease;
+            box-shadow: 0 0 8px rgba(0, 229, 255, .4);
+        }
+
+        .pb-fill.r {
+            background: linear-gradient(90deg, var(--red), #ff6b35);
+            box-shadow: 0 0 8px rgba(255, 61, 113, .4);
+        }
+
+        .pb-fill.y {
+            background: linear-gradient(90deg, var(--yellow), #ff9f00);
+            box-shadow: 0 0 8px rgba(255, 215, 64, .4);
+        }
+
+        /* TIMELINE */
+        .tl {
+            position: relative;
+            padding-left: 1.8rem;
+        }
+
+        .tl::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--accent), var(--red));
+        }
+
+        .tli {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .tld {
+            position: absolute;
+            left: -1.8rem;
+            top: 4px;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            background: var(--bg);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        .tld.r {
+            border-color: var(--red);
+            box-shadow: 0 0 8px var(--red);
+        }
+
+        .tlt {
+            font-size: .65rem;
+            color: var(--muted);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .tltxt {
+            font-size: .78rem;
+            color: var(--text);
+            margin-top: 2px;
+        }
+
+        /* GRAPH */
+        #graphCanvas {
+            width: 100%;
+            height: 380px;
+            background: var(--bg2);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 229, 255, .25);
+            border-radius: 3px;
+        }
+
+        /* NOTIFICATION */
+        .notif {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 999;
+            padding: .8rem 1.2rem;
+            border-radius: 10px;
+            font-size: .82rem;
+            border: 1px solid;
+            animation: slideIn .3s ease;
+            max-width: 320px;
+        }
+
+        .notif.success {
+            background: rgba(57, 211, 83, .15);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .notif.error {
+            background: rgba(255, 61, 113, .15);
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .notif.info {
+            background: rgba(0, 229, 255, .15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        /* RESULT BOX */
+        .rbox {
+            margin-top: .8rem;
+            padding: .9rem;
+            background: var(--bg2);
+            border-radius: 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: .72rem;
+            line-height: 1.7;
+            display: none;
+        }
+
+        /* BFS TREE */
+        .bfs-node {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: .65rem;
+            font-family: 'Share Tech Mono', monospace;
+            margin: 2px;
+            border: 1px solid;
+        }
+
+        .bfs-node.d0 {
+            border-color: var(--red);
+            color: var(--red);
+            background: rgba(255, 61, 113, .1);
+        }
+
+        .bfs-node.d1 {
+            border-color: var(--yellow);
+            color: var(--yellow);
+            background: rgba(255, 215, 64, .1);
+        }
+
+        .bfs-node.d2 {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 229, 255, .1);
+        }
+
+        .bfs-node.d3 {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(57, 211, 83, .1);
+        }
+
+        .bfs-node.d4 {
+            border-color: var(--purple);
+            color: var(--purple);
+            background: rgba(167, 139, 250, .1);
+        }
+
+        /* GAUGE */
+        .gauge {
+            text-align: center;
+            padding: .8rem 0;
+        }
+
+        .gnum {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.8rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .glabel {
+            font-size: .72rem;
+            color: var(--muted);
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 2px;
+        }
+
+        /* ALERT CARD */
+        .alert {
+            border-radius: 9px;
+            padding: .9rem 1rem;
+            margin-bottom: .7rem;
+            border-left: 3px solid;
+            font-size: .78rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+        }
+
+        .alert.c {
+            background: rgba(255, 61, 113, .07);
+            border-color: var(--red);
+        }
+
+        .alert.w {
+            background: rgba(255, 215, 64, .07);
+            border-color: var(--yellow);
+        }
+
+        .alert.i {
+            background: rgba(0, 229, 255, .07);
+            border-color: var(--accent);
+        }
+
+        .alert.s {
+            background: rgba(57, 211, 83, .07);
+            border-color: var(--green);
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">⚕</div>
+            COVID TRACER — CSA06
+        </div>
+        <div class="hchips">
+            <div class="chip g">
+                <div class="dot"></div> SYSTEM ONLINE
+            </div>
+            <div class="chip r" id="hPositive">
+                <div class="dot"></div> 0 POSITIVE
+            </div>
+            <div class="chip c" id="hClock">--:--:--</div>
+        </div>
+    </header>
+
+    <div class="app">
+        <!-- SIDEBAR -->
+        <nav>
+            <div class="nlabel">SYSTEM</div>
+            <div class="nitem active" onclick="showPage('overview',this)">
+                <div class="nicon">🏠</div> Dashboard
+            </div>
+            <div class="nlabel" style="margin-top:.5rem">MODULES</div>
+            <div class="nitem" onclick="showPage('m1',this)">
+                <div class="nicon">📡</div> M1 · Contact Log
+            </div>
+            <div class="nitem" onclick="showPage('m2',this)">
+                <div class="nicon">🧬</div> M2 · BFS / DFS Chain
+            </div>
+            <div class="nitem" onclick="showPage('m3',this)">
+                <div class="nicon">⚡</div> M3 · Risk Scoring <span class="nbadge" id="highCount">0</span>
+            </div>
+            <div class="nitem" onclick="showPage('m4',this)">
+                <div class="nicon">🕸️</div> M4 · Graph View
+            </div>
+            <div class="nitem" onclick="showPage('m5',this)">
+                <div class="nicon">🚨</div> M5 · Alerts
+            </div>
+            <div class="nlabel" style="margin-top:.5rem">INFO</div>
+            <div class="nitem" onclick="showPage('algo',this)">
+                <div class="nicon">📐</div> Algorithms
+            </div>
+        </nav>
+
+        <!-- MAIN -->
+        <main>
+
+            <!-- ══ OVERVIEW ══ -->
+            <div class="page active" id="pg-overview">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">🦠 CONTACT TRACER COMMAND CENTRE</div>
+                        <div class="psub">COVID-19 Graph Traversal System · BFS / DFS · SQLite · CSA06 SIMATS</div>
+                    </div>
+                    <div class="pbadge">LIVE</div>
+                </div>
+                <div class="g5" style="margin-bottom:1.2rem;" id="statsGrid">
+                    <div class="sc red">
+                        <div class="sn" id="s-positive">-</div>
+                        <div class="sl">Positive</div>
+                    </div>
+                    <div class="sc yellow">
+                        <div class="sn" id="s-exposed">-</div>
+                        <div class="sl">Exposed</div>
+                    </div>
+                    <div class="sc green">
+                        <div class="sn" id="s-healthy">-</div>
+                        <div class="sl">Healthy</div>
+                    </div>
+                    <div class="sc cyan">
+                        <div class="sn" id="s-contacts">-</div>
+                        <div class="sl">Contacts Logged</div>
+                    </div>
+                    <div class="sc purple">
+                        <div class="sn" id="s-traversals">-</div>
+                        <div class="sl">Traversals Run</div>
+                    </div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">🚨 LIVE ALERTS</div>
+                        <div id="liveAlerts">
+                            <div class="alert i"><span>🔵</span>
+                                <div>Loading alerts...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">📊 STATUS DISTRIBUTION</div>
+                        <div id="statusBars"></div>
+                        <div
+                            style="margin-top:1rem;font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);">
+                            Graph Traversal: BFS O(V+E) | DFS O(V+E)<br>
+                            Database: SQLite · Python Backend: Flask<br>
+                            Visualization: vis.js Network Graph
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">📋 RECENT TRAVERSAL LOG</div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Source</th>
+                                    <th>Algorithm</th>
+                                    <th>Nodes</th>
+                                    <th>Edges</th>
+                                    <th>Depth</th>
+                                    <th>Time (ms)</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="traversalTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ MODULE 1 ══ -->
+            <div class="page" id="pg-m1">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">📡 MODULE 1 · CONTACT LOG INGESTION</div>
+                        <div class="psub">GPS & Bluetooth Proximity Data Collection · SQLite Storage</div>
+                    </div>
+                    <div class="pbadge">DATA LAYER</div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">➕ ADD PERSON</div>
+                        <div class="row2">
+                            <div class="fg"><label>Person ID</label><input id="pid" placeholder="e.g. P013"></div>
+                            <div class="fg"><label>Full Name</label><input id="pname" placeholder="Full Name"></div>
+                        </div>
+                        <div class="row2">
+                            <div class="fg"><label>Age</label><input id="page" type="number" placeholder="25"></div>
+                            <div class="fg"><label>Gender</label>
+                                <select id="pgender">
+                                    <option>Male</option>
+                                    <option>Female</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row2">
+                            <div class="fg"><label>Location</label><input id="ploc" placeholder="e.g. Adyar"></div>
+                            <div class="fg"><label>Status</label>
+                                <select id="pstatus">
+                                    <option value="healthy">Healthy</option>
+                                    <option value="exposed">Exposed</option>
+                                    <option value="positive">Positive</option>
+                                    <option value="quarantine">Quarantine</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="fg"><label>Test Date (if positive)</label><input id="ptestdate" type="date"></div>
+                        <button class="btn btn-p" onclick="addPerson()">⚡ ADD PERSON</button>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">🔗 LOG CONTACT EVENT</div>
+                        <div class="row2">
+                            <div class="fg"><label>Person A ID</label><input id="ca" placeholder="P001"></div>
+                            <div class="fg"><label>Person B ID</label><input id="cb" placeholder="P002"></div>
+                        </div>
+                        <div class="row2">
+                            <div class="fg"><label>Duration (min)</label><input id="cdur" type="number" value="10">
+                            </div>
+                            <div class="fg"><label>Distance (m)</label><input id="cdist" type="number" value="1.2"
+                                    step="0.1"></div>
+                        </div>
+                        <div class="row2">
+                            <div class="fg"><label>Location</label><input id="cloc" placeholder="Market Area"></div>
+                            <div class="fg"><label>Signal Type</label>
+                                <select id="csig">
+                                    <option>Bluetooth LE</option>
+                                    <option>GPS</option>
+                                    <option>QR Check-In</option>
+                                    <option>WiFi</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="fg"><label>Date</label><input id="cdate" type="date"></div>
+                        <button class="btn btn-p" onclick="addContact()">📡 LOG CONTACT</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">👥 PERSON REGISTRY</div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Age</th>
+                                    <th>Gender</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Test Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="personsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">📋 CONTACT EVENT LOG</div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Person A</th>
+                                    <th>Person B</th>
+                                    <th>Duration</th>
+                                    <th>Distance</th>
+                                    <th>Location</th>
+                                    <th>Signal</th>
+                                    <th>Date</th>
+                                    <th>Risk</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contactsTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ MODULE 2 ══ -->
+            <div class="page" id="pg-m2">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">🧬 MODULE 2 · BFS / DFS INFECTION CHAIN</div>
+                        <div class="psub">Transmission Chain Reconstruction via Graph Traversal Algorithms</div>
+                    </div>
+                    <div class="pbadge">ALGORITHM</div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">⚙️ RUN TRAVERSAL</div>
+                        <div class="fg"><label>Source Person ID</label>
+                            <select id="trSource" style="margin-bottom:.5rem;"></select>
+                        </div>
+                        <div class="row2">
+                            <div class="fg"><label>Algorithm</label>
+                                <select id="trAlgo">
+                                    <option value="bfs">BFS — Breadth First Search</option>
+                                    <option value="dfs">DFS — Depth First Search</option>
+                                </select>
+                            </div>
+                            <div class="fg"><label>Incubation Days</label>
+                                <input id="trDays" type="number" value="14" min="1" max="30">
+                            </div>
+                        </div>
+                        <button class="btn btn-p" onclick="runTraversal()" style="margin-bottom:.8rem;">▶ EXECUTE
+                            TRAVERSAL</button>
+                        <div id="trResult" class="rbox"></div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">📊 ALGORITHM COMPARISON</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1rem;">
+                            <div
+                                style="text-align:center;padding:.8rem;background:var(--bg2);border-radius:8px;border:1px solid rgba(0,229,255,.2);">
+                                <div style="font-family:'Orbitron',monospace;font-size:1rem;color:var(--accent);">BFS
+                                </div>
+                                <div
+                                    style="font-size:.7rem;color:var(--muted);margin-top:3px;font-family:'Share Tech Mono',monospace;">
+                                    Breadth-First</div>
+                                <div
+                                    style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--green);margin-top:6px;">
+                                    O(V+E)</div>
+                                <div style="font-size:.68rem;color:var(--muted);margin-top:3px;">Level-by-level
+                                    traversal<br>Best for shortest path<br>Uses Queue (FIFO)</div>
+                            </div>
+                            <div
+                                style="text-align:center;padding:.8rem;background:var(--bg2);border-radius:8px;border:1px solid rgba(255,61,113,.2);">
+                                <div style="font-family:'Orbitron',monospace;font-size:1rem;color:var(--red);">DFS</div>
+                                <div
+                                    style="font-size:.7rem;color:var(--muted);margin-top:3px;font-family:'Share Tech Mono',monospace;">
+                                    Depth-First</div>
+                                <div
+                                    style="font-family:'Orbitron',monospace;font-size:1.3rem;color:var(--green);margin-top:6px;">
+                                    O(V+E)</div>
+                                <div style="font-size:.68rem;color:var(--muted);margin-top:3px;">Deep-branch
+                                    traversal<br>Best for cycle detection<br>Uses Stack (LIFO)</div>
+                            </div>
+                        </div>
+                        <div id="chainViz"
+                            style="min-height:80px;padding:.5rem;background:var(--bg2);border-radius:8px;font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--muted);">
+                            Run a traversal to see the chain visualization...</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">⏱️ INFECTION TIMELINE</div>
+                    <div class="tl" id="timeline">
+                        <div class="tli">
+                            <div class="tld r"></div>
+                            <div class="tlt">Run BFS or DFS above</div>
+                            <div class="tltxt" style="color:var(--muted);">Select a patient and execute traversal to
+                                build the infection timeline.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ MODULE 3 ══ -->
+            <div class="page" id="pg-m3">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">⚡ MODULE 3 · RISK SCORING ENGINE</div>
+                        <div class="psub">Weighted Multi-Factor Exposure Risk Calculation</div>
+                    </div>
+                    <div class="pbadge">RISK ENGINE</div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">🧮 INDIVIDUAL RISK CALCULATOR</div>
+                        <div class="fg"><label>Select Person</label><select id="riskPerson"></select></div>
+                        <button class="btn btn-p" onclick="calcRisk()" style="margin-bottom:.8rem;">⚡ COMPUTE
+                            RISK</button>
+                        <div id="riskResult" class="rbox"></div>
+                        <div class="abox" style="margin-top:.8rem;">
+                            <span class="cm"># Risk Score Formula</span><br>
+                            <span class="fn">Risk</span>(p) = <span class="fn">Proximity</span>(d) + <span
+                                class="fn">Duration</span>(t)<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="fn">ChainDepth</span>(k) +
+                            <span class="fn">Venue</span>(v)<br><br>
+                            <span class="fn">Proximity</span>(d) = max(<span class="num">0</span>, <span
+                                class="num">1</span>-d/<span class="num">2.0</span>) × <span class="num">40</span><br>
+                            <span class="fn">Duration</span>(t)&nbsp; = min(t/<span class="num">30</span>,<span
+                                class="num">1</span>) × <span class="num">10</span><br>
+                            <span class="fn">ChainDepth</span>(k)= <span class="num">30</span>/(1+e^(-0.5·(k-2)))<br>
+                            <span class="fn">Venue</span>(v)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= (indoor%/<span
+                                class="num">100</span>) × <span class="num">20</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">📊 RISK GAUGE</div>
+                        <div class="gauge">
+                            <div class="gnum" id="gaugeNum" style="color:var(--muted);">--</div>
+                            <div class="glabel">RISK SCORE / 100</div>
+                        </div>
+                        <div id="riskLevelBox"
+                            style="margin:.6rem 0;padding:.7rem;border-radius:8px;text-align:center;background:rgba(255,255,255,.03);border:1px solid var(--border);">
+                            <div
+                                style="font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;color:var(--muted);">
+                                —</div>
+                            <div style="font-size:.7rem;color:var(--muted);margin-top:3px;">Run calculator to assess
+                                risk</div>
+                        </div>
+                        <div id="riskBars"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">🚨 ALL PERSONS RISK SCORES</div>
+                    <button class="btn btn-p" onclick="loadAllRisks()" style="margin-bottom:.9rem;">🔄 COMPUTE ALL
+                        RISKS</button>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Person</th>
+                                    <th>Status</th>
+                                    <th>Risk Score</th>
+                                    <th>Level</th>
+                                    <th>Contacts</th>
+                                    <th>Positive Contacts</th>
+                                    <th>Chain Depth</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="riskTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ MODULE 4 ══ -->
+            <div class="page" id="pg-m4">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">🕸️ MODULE 4 · CONTACT NETWORK GRAPH</div>
+                        <div class="psub">Interactive vis.js Network Visualization of Contact Graph G=(V,E)</div>
+                    </div>
+                    <div class="pbadge">GRAPH VIEW</div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">🗺️ LIVE CONTACT NETWORK</div>
+                    <div id="graphCanvas"></div>
+                    <div style="display:flex;gap:1rem;margin-top:.8rem;flex-wrap:wrap;font-size:.72rem;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="width:12px;height:12px;border-radius:50%;background:var(--red);"></div> Positive
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="width:12px;height:12px;border-radius:50%;background:var(--yellow);"></div>
+                            Exposed
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="width:12px;height:12px;border-radius:50%;background:var(--green);"></div>
+                            Healthy
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="width:12px;height:12px;border-radius:50%;background:var(--accent);"></div>
+                            Quarantine
+                        </div>
+                        <div
+                            style="margin-left:auto;font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted);">
+                            Drag nodes · Scroll to zoom · Click for info</div>
+                    </div>
+                </div>
+                <div class="g3">
+                    <div class="card">
+                        <div class="ctitle">📐 GRAPH STATISTICS</div>
+                        <div id="graphStats"
+                            style="font-size:.8rem;line-height:2.2;font-family:'Share Tech Mono',monospace;color:var(--muted);">
+                            Loading...</div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">🔍 NODE INSPECTOR</div>
+                        <div id="nodeInfo"
+                            style="font-size:.8rem;line-height:2;font-family:'Share Tech Mono',monospace;color:var(--muted);">
+                            Click a node in the graph to inspect it.</div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">📋 ADJACENCY INFO</div>
+                        <div id="adjInfo" style="font-size:.78rem;line-height:1.9;color:var(--muted);">Select a node to
+                            see neighbors.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ MODULE 5 ══ -->
+            <div class="page" id="pg-m5">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">🚨 MODULE 5 · ALERT & QUARANTINE SYSTEM</div>
+                        <div class="psub">Automated Quarantine Dispatch & Alert Management</div>
+                    </div>
+                    <div class="pbadge">ALERTS</div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">⚠️ ISSUE QUARANTINE ORDER</div>
+                        <div class="fg"><label>Select Person</label><select id="qPerson"></select></div>
+                        <div class="fg"><label>Reason</label><input id="qReason"
+                                value="High-risk contact with confirmed case"></div>
+                        <div class="fg"><label>Algorithm Used</label>
+                            <select id="qAlgo">
+                                <option value="BFS">BFS — Contact Chain Traced</option>
+                                <option value="DFS">DFS — Contact Chain Traced</option>
+                                <option value="Manual">Manual Assessment</option>
+                            </select>
+                        </div>
+                        <div class="fg"><label>Risk Score</label><input id="qScore" type="number" value="75" min="0"
+                                max="100"></div>
+                        <button class="btn btn-d" onclick="issueQuarantine()">🚨 ISSUE QUARANTINE ORDER</button>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">📊 ALERT STATISTICS</div>
+                        <div id="alertStats"
+                            style="font-size:.82rem;line-height:2.2;font-family:'Share Tech Mono',monospace;"></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">📬 QUARANTINE LOG</div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Person</th>
+                                    <th>Reason</th>
+                                    <th>Algorithm</th>
+                                    <th>Risk Score</th>
+                                    <th>Start</th>
+                                    <th>End (14 days)</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quarantineTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ ALGO INFO ══ -->
+            <div class="page" id="pg-algo">
+                <div class="ph">
+                    <div>
+                        <div class="ptitle">📐 ALGORITHM DETAILS</div>
+                        <div class="psub">CSA06 · Design and Analysis of Algorithms · SIMATS Engineering</div>
+                    </div>
+                    <div class="pbadge">CSA06</div>
+                </div>
+                <div class="g2">
+                    <div class="card">
+                        <div class="ctitle">🔵 BFS — BREADTH FIRST SEARCH</div>
+                        <div class="abox">
+                            <span class="cm"># BFS — O(V+E) — Queue-based</span><br>
+                            <span class="kw">def</span> <span class="fn">bfs_trace</span>(graph, source):<br>
+                            &nbsp;&nbsp;visited = {}<br>
+                            &nbsp;&nbsp;queue = [(source, <span class="num">0</span>)]<br>
+                            &nbsp;&nbsp;chain = []<br><br>
+                            &nbsp;&nbsp;<span class="kw">while</span> queue:<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;node, depth = queue.<span class="fn">pop</span>(<span
+                                class="num">0</span>) <span class="cm"># FIFO</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node <span class="kw">in</span> visited:
+                            <span class="kw">continue</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> depth > incubation: <span
+                                class="kw">continue</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;visited[node] = depth<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;chain.<span class="fn">append</span>(node)<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> nbr <span class="kw">in</span>
+                            graph[node]:<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;queue.<span class="fn">append</span>((nbr, depth+<span
+                                class="num">1</span>))<br>
+                            &nbsp;&nbsp;<span class="kw">return</span> chain<br><br>
+                            <span class="cm"># Time: O(V+E) · Space: O(V)</span><br>
+                            <span class="cm"># Finds shortest path to all contacts</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="ctitle">🔴 DFS — DEPTH FIRST SEARCH</div>
+                        <div class="abox">
+                            <span class="cm"># DFS — O(V+E) — Stack-based</span><br>
+                            <span class="kw">def</span> <span class="fn">dfs_trace</span>(graph, source):<br>
+                            &nbsp;&nbsp;visited = {}<br>
+                            &nbsp;&nbsp;stack = [(source, <span class="num">0</span>)]<br>
+                            &nbsp;&nbsp;chain = []<br><br>
+                            &nbsp;&nbsp;<span class="kw">while</span> stack:<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;node, depth = stack.<span class="fn">pop</span>() <span class="cm">#
+                                LIFO</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node <span class="kw">in</span> visited:
+                            <span class="kw">continue</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> depth > incubation: <span
+                                class="kw">continue</span><br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;visited[node] = depth<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;chain.<span class="fn">append</span>(node)<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> nbr <span class="kw">in</span>
+                            reversed(graph[node]):<br>
+                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stack.<span class="fn">append</span>((nbr, depth+<span
+                                class="num">1</span>))<br>
+                            &nbsp;&nbsp;<span class="kw">return</span> chain<br><br>
+                            <span class="cm"># Time: O(V+E) · Space: O(V)</span><br>
+                            <span class="cm"># Explores deep branches first</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="ctitle">📊 PROJECT INFO — CSA06 SIMATS ENGINEERING</div>
+                    <div class="g3">
+                        <div
+                            style="padding:.8rem;background:var(--bg2);border-radius:8px;font-size:.78rem;line-height:2;">
+                            <div
+                                style="color:var(--accent);font-family:'Orbitron',monospace;font-size:.72rem;margin-bottom:.4rem;">
+                                PROJECT DETAILS</div>
+                            <div><span style="color:var(--muted);">Course:</span> CSA06 / Design and Analysis of
+                                Algorithms</div>
+                            <div><span style="color:var(--muted);">SDG 3:</span> Good Health and Well-being</div>
+                            <div><span style="color:var(--muted);">SDG 9:</span> Industry, Innovation, Infrastructure
+                            </div>
+                            <div><span style="color:var(--muted);">Type:</span> Mini Project</div>
+                        </div>
+                        <div
+                            style="padding:.8rem;background:var(--bg2);border-radius:8px;font-size:.78rem;line-height:2;">
+                            <div
+                                style="color:var(--accent);font-family:'Orbitron',monospace;font-size:.72rem;margin-bottom:.4rem;">
+                                TECHNOLOGIES</div>
+                            <div>🐍 Python 3 · Flask Backend</div>
+                            <div>🔷 Graph Algorithms: BFS · DFS</div>
+                            <div>🗄️ SQLite Database Storage</div>
+                            <div>📊 vis.js Network Visualization</div>
+                        </div>
+                        <div
+                            style="padding:.8rem;background:var(--bg2);border-radius:8px;font-size:.78rem;line-height:2;">
+                            <div
+                                style="color:var(--accent);font-family:'Orbitron',monospace;font-size:.72rem;margin-bottom:.4rem;">
+                                COMPLEXITY</div>
+                            <div>BFS Chain: <span style="color:var(--green);">O(V+E)</span></div>
+                            <div>DFS Chain: <span style="color:var(--green);">O(V+E)</span></div>
+                            <div>Risk Score: <span style="color:var(--yellow);">O(n·k)</span></div>
+                            <div>Contact Filter: <span style="color:var(--green);">O(n)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div><!-- end app -->
+
+    <script>
+        const API = '';
+
+        // ── NAVIGATION ──
+        function showPage(id, el) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nitem').forEach(n => n.classList.remove('active'));
+            document.getElementById('pg-' + id).classList.add('active');
+            if (el) el.classList.add('active');
+            if (id === 'overview') loadOverview();
+            if (id === 'm1') { loadPersons(); loadContacts(); }
+            if (id === 'm2') populateTraversalSource();
+            if (id === 'm3') { populateRiskPerson(); populateQPerson(); }
+            if (id === 'm4') loadGraph();
+            if (id === 'm5') { loadQuarantineLog(); loadAlertStats(); populateQPerson(); }
+        }
+
+        // ── CLOCK ──
+        setInterval(() => {
+            document.getElementById('hClock').textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        }, 1000);
+
+        // ── NOTIFICATIONS ──
+        function notify(msg, type = 'info') {
+            const n = document.createElement('div');
+            n.className = `notif ${type}`;
+            n.textContent = msg;
+            document.body.appendChild(n);
+            setTimeout(() => n.remove(), 3500);
+        }
+
+        // ── OVERVIEW ──
+        async function loadOverview() {
+            const d = await fetch('/api/dashboard').then(r => r.json());
+            document.getElementById('s-positive').textContent = d.positive;
+            document.getElementById('s-exposed').textContent = d.exposed;
+            document.getElementById('s-healthy').textContent = d.healthy;
+            document.getElementById('s-contacts').textContent = d.total_contacts;
+            document.getElementById('s-traversals').textContent = d.traversals_run;
+            document.getElementById('hPositive').innerHTML = `<div class="dot"></div> ${d.positive} POSITIVE`;
+            document.getElementById('highCount').textContent = d.exposed;
+
+            // Status bars
+            const total = d.total_persons || 1;
+            const bars = [
+                { label: 'Positive', val: d.positive, cls: 'r', color: 'var(--red)' },
+                { label: 'Exposed', val: d.exposed, cls: 'y', color: 'var(--yellow)' },
+                { label: 'Healthy', val: d.healthy, cls: '', color: 'var(--green)' },
+                { label: 'Quarantine', val: d.quarantine, cls: '', color: 'var(--accent)' },
+            ];
+            document.getElementById('statusBars').innerHTML = bars.map(b => `
+    <div class="pb">
+      <div class="pb-label"><span>${b.label}</span><span style="color:${b.color};">${b.val}</span></div>
+      <div class="pb-track"><div class="pb-fill ${b.cls}" style="width:${Math.round(b.val / total * 100)}%;background:linear-gradient(90deg,${b.color},${b.color}88);"></div></div>
+    </div>`).join('');
+
+            // Traversal log
+            const logs = await fetch('/api/traversal_log').then(r => r.json());
+            document.getElementById('traversalTable').innerHTML = logs.map(l => `
+    <tr><td style="font-family:'Share Tech Mono',monospace;color:var(--accent);">#${l.id}</td>
+    <td>${l.source_id}</td>
+    <td><span class="rb ${l.algorithm === 'BFS' ? 'medium' : 'high'}">${l.algorithm}</span></td>
+    <td style="color:var(--green);">${l.nodes_visited}</td>
+    <td>${l.edges_traversed}</td>
+    <td>${l.depth}</td>
+    <td style="color:var(--yellow);">${l.execution_ms}</td>
+    <td style="font-size:.65rem;color:var(--muted);">${l.timestamp}</td></tr>`).join('') || '<tr><td colspan="8" style="color:var(--muted);text-align:center;">No traversals yet. Go to Module 2.</td></tr>';
+
+            // Live alerts
+            const alerts = await fetch('/api/alerts').then(r => r.json());
+            document.getElementById('liveAlerts').innerHTML = alerts.length
+                ? alerts.slice(0, 4).map(a => `
+      <div class="alert ${a.risk_score > 70 ? 'c' : 'w'}">
+        <span>${a.risk_score > 70 ? '🔴' : '🟡'}</span>
+        <div><strong>${a.name}</strong> — ${a.reason} (${a.algorithm}, Score: ${a.risk_score})</div>
+      </div>`).join('')
+                : '<div class="alert i"><span>🔵</span><div>No quarantine orders yet. Run risk assessment.</div></div>';
+        }
+
+        // ── MODULE 1 ──
+        async function loadPersons() {
+            const data = await fetch('/api/persons').then(r => r.json());
+            document.getElementById('personsTable').innerHTML = data.map(p => `
+    <tr><td style="font-family:'Share Tech Mono',monospace;color:var(--accent);">${p.id}</td>
+    <td><strong>${p.name}</strong></td>
+    <td>${p.age || '—'}</td>
+    <td>${p.gender || '—'}</td>
+    <td>${p.location || '—'}</td>
+    <td><span class="rb ${p.status}">${p.status.toUpperCase()}</span></td>
+    <td style="font-size:.68rem;color:var(--muted);">${p.test_date || '—'}</td>
+    <td><button class="btn btn-p" style="padding:2px 8px;font-size:.6rem;" onclick="quickBFS('${p.id}')">BFS</button></td></tr>`).join('');
+        }
+
+        async function loadContacts() {
+            const data = await fetch('/api/contacts').then(r => r.json());
+            document.getElementById('contactsTable').innerHTML = data.map(c => {
+                const risk = c.distance_m < 1.5 && c.duration_min > 10 ? 'high' : c.distance_m < 2 ? 'medium' : 'low';
+                return `<tr><td>${c.person_a_name}<br><span style="font-size:.6rem;color:var(--muted);">${c.person_a_id}</span></td>
+    <td>${c.person_b_name}<br><span style="font-size:.6rem;color:var(--muted);">${c.person_b_id}</span></td>
+    <td>${c.duration_min} min</td>
+    <td>${c.distance_m} m</td>
+    <td>${c.location || '—'}</td>
+    <td style="font-size:.68rem;">${c.signal_type}</td>
+    <td style="font-size:.68rem;color:var(--muted);">${c.contact_date}</td>
+    <td><span class="rb ${risk}">${risk.toUpperCase()}</span></td></tr>`;
+            }).join('');
+        }
+
+        async function addPerson() {
+            const d = { id: document.getElementById('pid').value.trim(), name: document.getElementById('pname').value.trim(), age: parseInt(document.getElementById('page').value) || null, gender: document.getElementById('pgender').value, location: document.getElementById('ploc').value, status: document.getElementById('pstatus').value, test_date: document.getElementById('ptestdate').value || null };
+            if (!d.id || !d.name) { notify('ID and Name required', 'error'); return; }
+            const r = await fetch('/api/persons', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }).then(r => r.json());
+            if (r.success) { notify('Person added: ' + d.name, 'success'); loadPersons(); }
+            else notify(r.error || 'Error', 'error');
+        }
+
+        async function addContact() {
+            const d = { person_a: document.getElementById('ca').value.trim(), person_b: document.getElementById('cb').value.trim(), duration_min: parseFloat(document.getElementById('cdur').value), distance_m: parseFloat(document.getElementById('cdist').value), location: document.getElementById('cloc').value, signal_type: document.getElementById('csig').value, contact_date: document.getElementById('cdate').value || new Date().toISOString().split('T')[0] };
+            if (!d.person_a || !d.person_b) { notify('Both person IDs required', 'error'); return; }
+            const r = await fetch('/api/contacts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }).then(r => r.json());
+            if (r.success) { notify('Contact logged!', 'success'); loadContacts(); }
+            else notify(r.error || 'Error', 'error');
+        }
+
+        // ── MODULE 2 ──
+        async function populateTraversalSource() {
+            const data = await fetch('/api/persons').then(r => r.json());
+            const sel = document.getElementById('trSource');
+            sel.innerHTML = data.map(p => `<option value="${p.id}">${p.id} — ${p.name} (${p.status})</option>`).join('');
+            // Default to first positive
+            const pos = data.find(p => p.status === 'positive');
+            if (pos) sel.value = pos.id;
+        }
+
+        async function runTraversal() {
+            const src = document.getElementById('trSource').value;
+            const algo = document.getElementById('trAlgo').value;
+            const days = document.getElementById('trDays').value;
+            if (!src) { notify('Select a person', 'error'); return; }
+            notify('Running ' + algo.toUpperCase() + '...', 'info');
+
+            const res = await fetch(`/api/${algo}/${src}?days=${days}`).then(r => r.json());
+            if (res.error) { notify(res.error, 'error'); return; }
+
+            const rb = document.getElementById('trResult');
+            rb.style.display = 'block';
+            rb.innerHTML = `<span style="color:var(--green);">✓ ${res.algorithm} COMPLETE</span><br>
+Source: <span style="color:var(--accent);">${res.source}</span> | Nodes visited: <span style="color:var(--yellow);">${res.nodes_visited}</span> | Edges: ${res.edges_traversed} | Max depth: ${res.max_depth} | Time: <span style="color:var(--green);">${res.execution_ms}ms</span>`;
+
+            // Chain visualization
+            const depth_colors = ['d0', 'd1', 'd2', 'd3', 'd4'];
+            document.getElementById('chainViz').innerHTML = (res.chain || []).map(n =>
+                `<span class="bfs-node ${depth_colors[Math.min(n.depth, 4)]}" title="Depth ${n.depth} · ${n.status}">D${n.depth}: ${n.name || n.id}</span>`
+            ).join(' ');
+
+            // Timeline
+            const statusColors = { positive: ' style="color:var(--red)"', exposed: ' style="color:var(--yellow)"', healthy: '', quarantine: ' style="color:var(--accent)"' };
+            document.getElementById('timeline').innerHTML = (res.chain || []).map((n, i) => `
+    <div class="tli">
+      <div class="tld${n.status === 'positive' ? ' r' : ''}"></div>
+      <div class="tlt">Depth ${n.depth} · Node ${i + 1} of ${res.nodes_visited}</div>
+      <div class="tltxt"${statusColors[n.status] || ''}>${n.name || n.id} — <span style="text-transform:capitalize;">${n.status}</span></div>
+    </div>`).join('');
+
+            notify(res.algorithm + ' traced ' + res.nodes_visited + ' contacts', 'success');
+            loadOverview();
+        }
+
+        function quickBFS(pid) {
+            showPage('m2', document.querySelectorAll('.nitem')[3]);
+            setTimeout(() => {
+                document.getElementById('trSource').value = pid;
+                runTraversal();
+            }, 300);
+        }
+
+        // ── MODULE 3 ──
+        async function populateRiskPerson() {
+            const data = await fetch('/api/persons').then(r => r.json());
+            document.getElementById('riskPerson').innerHTML = data.map(p => `<option value="${p.id}">${p.id} — ${p.name}</option>`).join('');
+        }
+
+        async function populateQPerson() {
+            const data = await fetch('/api/persons').then(r => r.json());
+            ['qPerson'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = data.map(p => `<option value="${p.id}">${p.id} — ${p.name}</option>`).join('');
+            });
+        }
+
+        async function calcRisk() {
+            const pid = document.getElementById('riskPerson').value;
+            const res = await fetch(`/api/risk/${pid}`).then(r => r.json());
+            const rb = document.getElementById('riskResult');
+            rb.style.display = 'block';
+            rb.innerHTML = `Person: <span style="color:var(--accent);">${pid}</span> | Score: <span style="color:${res.risk_score >= 70 ? 'var(--red)' : res.risk_score >= 40 ? 'var(--yellow)' : 'var(--green)'};">${res.risk_score}</span> | Level: ${res.risk_level} | Contacts: ${res.contacts_count} | Positives: ${res.positive_contacts}`;
+
+            const g = document.getElementById('gaugeNum');
+            g.textContent = res.risk_score;
+            g.style.color = res.risk_score >= 70 ? 'var(--red)' : res.risk_score >= 40 ? 'var(--yellow)' : 'var(--green)';
+
+            const lb = document.getElementById('riskLevelBox');
+            const cfg = res.risk_score >= 70
+                ? { cls: 'rgba(255,61,113,.1)', bc: 'rgba(255,61,113,.3)', col: 'var(--red)', label: '🔴 HIGH RISK', sub: 'Immediate quarantine recommended' }
+                : res.risk_score >= 40
+                    ? { cls: 'rgba(255,215,64,.1)', bc: 'rgba(255,215,64,.3)', col: 'var(--yellow)', label: '🟡 MEDIUM RISK', sub: 'Monitor closely' }
+                    : { cls: 'rgba(57,211,83,.1)', bc: 'rgba(57,211,83,.3)', col: 'var(--green)', label: '🟢 LOW RISK', sub: 'Standard precautions' };
+            lb.style.background = cfg.cls; lb.style.borderColor = cfg.bc;
+            lb.innerHTML = `<div style="font-family:'Orbitron',monospace;font-size:.9rem;font-weight:700;color:${cfg.col};">${cfg.label}</div><div style="font-size:.7rem;color:var(--muted);margin-top:3px;">${cfg.sub}</div>`;
+
+            const f = res.factors || {};
+            document.getElementById('riskBars').innerHTML = [
+                { label: 'Proximity Score', val: f.proximity || 0, max: 40 },
+                { label: 'Duration Weight', val: f.duration || 0, max: 10 },
+                { label: 'Chain Depth', val: f.chain_depth_score || 0, max: 30 },
+                { label: 'Venue Risk', val: f.venue || 0, max: 20 },
+            ].map(b => `<div class="pb"><div class="pb-label"><span>${b.label}</span><span style="color:var(--accent);">${b.val}/${b.max}</span></div>
+    <div class="pb-track"><div class="pb-fill r" style="width:${Math.round(b.val / b.max * 100)}%;"></div></div></div>`).join('');
+        }
+
+        async function loadAllRisks() {
+            notify('Computing all risk scores...', 'info');
+            const data = await fetch('/api/risk_all').then(r => r.json());
+            document.getElementById('highCount').textContent = data.filter(d => d.risk_level === 'HIGH').length;
+            document.getElementById('riskTable').innerHTML = data.map(p => {
+                const col = p.risk_level === 'HIGH' ? 'var(--red)' : p.risk_level === 'MEDIUM' ? 'var(--yellow)' : 'var(--green)';
+                return `<tr>
+    <td><strong>${p.name}</strong><br><span style="font-size:.62rem;color:var(--muted);">${p.person_id}</span></td>
+    <td><span class="rb ${p.status}">${p.status.toUpperCase()}</span></td>
+    <td><span style="font-family:'Orbitron',monospace;font-weight:700;color:${col};font-size:1rem;">${p.risk_score}</span></td>
+    <td><span class="rb ${p.risk_level.toLowerCase()}">${p.risk_level}</span></td>
+    <td>${p.contacts_count}</td>
+    <td>${p.positive_contacts}</td>
+    <td>${p.chain_depth}</td>
+    <td><button class="btn btn-d" style="padding:2px 8px;font-size:.6rem;" onclick="quickQuarantine('${p.person_id}',${p.risk_score})">QUARANTINE</button></td></tr>`;
+            }).join('');
+        }
+
+        function quickQuarantine(pid, score) {
+            showPage('m5', document.querySelectorAll('.nitem')[6]);
+            setTimeout(() => {
+                document.getElementById('qPerson').value = pid;
+                document.getElementById('qScore').value = score;
+            }, 300);
+        }
+
+        // ── MODULE 4 ──
+        let network = null;
+        async function loadGraph() {
+            const data = await fetch('/api/graph').then(r => r.json());
+            const nodes = new vis.DataSet(data.nodes.map(n => ({
+                id: n.id, label: n.label + '\n' + n.status, color: { background: n.color + '99', border: n.color, highlight: { background: n.color, border: '#ffffff' } },
+                font: { color: '#c8d8f0', size: 11 }, size: n.size || 14,
+                borderWidth: n.status === 'positive' ? 3 : 1
+            })));
+            const edges = new vis.DataSet(data.edges.map(e => ({
+                from: e.from, to: e.to,
+                color: { color: 'rgba(100,160,200,0.3)', highlight: 'rgba(0,229,255,0.8)' },
+                title: `${e.duration}min · ${e.distance}m`,
+                width: Math.max(1, 3 - e.distance)
+            })));
+
+            const container = document.getElementById('graphCanvas');
+            if (network) network.destroy();
+            network = new vis.Network(container, { nodes, edges }, {
+                physics: { stabilization: { iterations: 100 }, barnesHut: { gravitationalConstant: -5000 } },
+                interaction: { hover: true },
+                edges: { smooth: { type: 'dynamic' } },
+                nodes: { shape: 'dot' }
+            });
+
+            // Stats
+            document.getElementById('graphStats').innerHTML =
+                `Nodes (V): <span style="color:var(--accent);">${data.nodes.length}</span><br>
+     Edges (E): <span style="color:var(--accent);">${data.edges.length}</span><br>
+     Positive: <span style="color:var(--red);">${data.nodes.filter(n => n.status === 'positive').length}</span><br>
+     Exposed: <span style="color:var(--yellow);">${data.nodes.filter(n => n.status === 'exposed').length}</span><br>
+     Density: <span style="color:var(--green);">${(2 * data.edges.length / (data.nodes.length * (data.nodes.length - 1))).toFixed(3)}</span>`;
+
+            network.on('click', function (p) {
+                if (!p.nodes.length) return;
+                const nid = p.nodes[0];
+                const node = data.nodes.find(n => n.id === nid);
+                const neighbors = data.edges.filter(e => e.from === nid || e.to === nid).map(e => e.from === nid ? e.to : e.from);
+                const nnames = neighbors.map(n => { const nd = data.nodes.find(x => x.id === n); return nd ? nd.label : n; });
+                document.getElementById('nodeInfo').innerHTML =
+                    `ID: <span style="color:var(--accent);">${node.id}</span><br>Name: ${node.label}<br>Status: <span class="rb ${node.status}">${node.status.toUpperCase()}</span><br>Connections: ${neighbors.length}`;
+                document.getElementById('adjInfo').innerHTML =
+                    `<strong>Neighbors of ${node.label}:</strong><br>` +
+                    (nnames.length ? nnames.map(n => `• ${n}`).join('<br>') : 'No connections');
+            });
+        }
+
+        // ── MODULE 5 ──
+        async function issueQuarantine() {
+            const d = { person_id: document.getElementById('qPerson').value, reason: document.getElementById('qReason').value, algorithm: document.getElementById('qAlgo').value, risk_score: parseFloat(document.getElementById('qScore').value) };
+            const r = await fetch('/api/quarantine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) }).then(r => r.json());
+            if (r.success) { notify('Quarantine order issued! 14 days: ' + r.start + ' → ' + r.end, 'success'); loadQuarantineLog(); loadAlertStats(); }
+            else notify(r.error || 'Error', 'error');
+        }
+
+        async function loadQuarantineLog() {
+            const data = await fetch('/api/alerts').then(r => r.json());
+            document.getElementById('quarantineTable').innerHTML = data.map(a => `
+    <tr><td style="font-family:'Share Tech Mono',monospace;color:var(--accent);">#${a.id}</td>
+    <td><strong>${a.name}</strong><br><span style="font-size:.6rem;color:var(--muted);">${a.person_id}</span></td>
+    <td style="font-size:.72rem;">${a.reason}</td>
+    <td><span class="rb ${a.algorithm === 'BFS' ? 'medium' : 'high'}">${a.algorithm}</span></td>
+    <td style="color:${a.risk_score >= 70 ? 'var(--red)' : a.risk_score >= 40 ? 'var(--yellow)' : 'var(--green)'};font-family:'Orbitron',monospace;font-weight:700;">${a.risk_score}</td>
+    <td style="font-size:.68rem;">${a.start_date}</td>
+    <td style="font-size:.68rem;">${a.end_date}</td>
+    <td><span class="rb ${a.status === 'active' ? 'high' : 'low'}">${a.status.toUpperCase()}</span></td></tr>`).join('')
+                || '<tr><td colspan="8" style="color:var(--muted);text-align:center;">No quarantine orders yet.</td></tr>';
+        }
+
+        async function loadAlertStats() {
+            const data = await fetch('/api/alerts').then(r => r.json());
+            const active = data.filter(a => a.status === 'active').length;
+            const high = data.filter(a => a.risk_score >= 70).length;
+            document.getElementById('alertStats').innerHTML =
+                `Total Orders: <span style="color:var(--accent);">${data.length}</span><br>
+     Active: <span style="color:var(--yellow);">${active}</span><br>
+     High Risk: <span style="color:var(--red);">${high}</span><br>
+     BFS-triggered: <span style="color:var(--green);">${data.filter(a => a.algorithm === 'BFS').length}</span><br>
+     DFS-triggered: <span style="color:var(--green);">${data.filter(a => a.algorithm === 'DFS').length}</span>`;
+        }
+
+        // ── INIT ──
+        loadOverview();
+    </script>
+</body>
+
+</html>
